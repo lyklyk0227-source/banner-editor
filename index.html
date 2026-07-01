@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%233b6ef8%22/%3E%0A%20%20%3Crect%20x%3D%2213%22%20y%3D%2216%22%20width%3D%2238%22%20height%3D%2232%22%20rx%3D%225%22%20fill%3D%22%23ffffff%22/%3E%0A%20%20%3Crect%20x%3D%2217%22%20y%3D%2220%22%20width%3D%2230%22%20height%3D%2224%22%20rx%3D%223%22%20fill%3D%22%23eff3ff%22/%3E%0A%20%20%3Ccircle%20cx%3D%2240%22%20cy%3D%2227%22%20r%3D%224%22%20fill%3D%22%238fb1ff%22/%3E%0A%20%20%3Cpath%20d%3D%22M18%2042l9-10%207%207%205-5%209%208H18z%22%20fill%3D%22%232d5ef0%22/%3E%0A%3C/svg%3E">
 <title>배너 편집기</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -185,6 +186,7 @@ body{background:var(--bg);color:var(--text);font-family:'Pretendard','Noto Sans 
 .te-handle:hover,.te-handle.sel{border-style:solid;border-color:var(--accent);}
 .te-hdel{position:absolute;top:-10px;right:-10px;width:18px;height:18px;background:var(--red);border:2px solid #fff;border-radius:50%;color:#fff;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;}
 .te-handle.sel .te-hdel{opacity:1;}
+.te-inline-editor{position:absolute;z-index:5;min-width:48px;min-height:28px;border:2px solid var(--accent);border-radius:6px;background:#fff;color:var(--text);box-shadow:0 8px 24px rgba(59,110,248,.22);padding:4px 6px;resize:none;outline:none;line-height:1.25;font-family:inherit;overflow:hidden;}
 
 .canvas-size-info{font-size:10px;color:var(--muted);text-align:center;}
 
@@ -207,8 +209,8 @@ body{background:var(--bg);color:var(--text);font-family:'Pretendard','Noto Sans 
     <div>
       <div class="sec-title">출력 사이즈</div>
       <div class="presets">
-        <button class="preset-btn" data-w="368" data-h="196">368×196<br><small>쌤블로그</small></button>
-        <button class="preset-btn" data-w="500" data-h="308">500×308<br><small>메인콘텐츠</small></button>
+        <button class="preset-btn" data-w="184" data-h="98">184×98<br><small>쌤블로그</small></button>
+        <button class="preset-btn" data-w="250" data-h="154">250×154<br><small>메인콘텐츠</small></button>
         <button class="preset-btn" data-w="158" data-h="73" data-radius="37">158×73<br><small>플로팅배너</small></button>
       </div>
       <div class="field-row">
@@ -290,7 +292,7 @@ body{background:var(--bg);color:var(--text);font-family:'Pretendard','Noto Sans 
 
         <div class="msec" style="margin-top:4px">📝 텍스트 레이어</div>
         <div id="teLayerList" style="display:flex;flex-direction:column;gap:6px;"></div>
-        <button class="btn btn-ghost" onclick="addTeLayer()" style="font-size:12px;padding:8px;">+ 텍스트 추가</button>
+        <button class="btn btn-ghost" onclick="addTeLayer()" style="font-size:12px;padding:8px;">+ 글자 추가</button>
 
         <div class="msec" style="margin-top:4px">⚙️ 텍스트 설정</div>
         <div id="teEditPanel" style="display:none;flex-direction:column;gap:10px;">
@@ -319,7 +321,7 @@ body{background:var(--bg);color:var(--text);font-family:'Pretendard','Noto Sans 
             </select>
           </div>
           <div class="mfield-row">
-            <div class="mfield"><label>크기(px)</label><input type="number" id="teSz" value="32" min="8" max="300" oninput="teUpdateSel()"></div>
+            <div class="mfield"><label>크기(px)</label><input type="number" id="teSz" value="24" min="8" max="300" oninput="teUpdateSel()"></div>
             <div class="mfield"><label>굵기</label>
               <select id="teWt" onchange="teUpdateSel()">
                 <option value="300">가늘게</option>
@@ -376,6 +378,13 @@ const V = id => document.getElementById(id);
 // ═══════════════════════════════
 let images=[], idCounter=0, cropDrag=null;
 const FILL_COLORS=[{v:'#ffffff',b:'#dde1ea'},{v:'#000000',b:null},{v:'#f5f5f5',b:'#ddd'}];
+
+function escapeHTML(v){
+  return String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+function cloneTextLayers(layers){
+  return (layers||[]).map(l=>({...l}));
+}
 
 // ═══════════════════════════════
 //  FILE INPUT
@@ -523,7 +532,7 @@ function appendCard(entry){
     </div>
     <div class="card-actions">
       <button class="card-btn dl" onclick="downloadSingle(${entry.id})">⬇ PNG</button>
-      <button class="card-btn te" onclick="openTE(${entry.id})">✏️ 텍스트</button>
+      <button class="card-btn te" onclick="openTE(${entry.id})">✏️ 글자 편집</button>
       <button class="card-btn rm" onclick="removeCard(${entry.id})">✕</button>
     </div>`;
   V('imgGrid').appendChild(card);
@@ -711,11 +720,14 @@ let teEntry=null,teLayers=[],teLayerId=0,teSelId=null,teDrag=null,teScale=1;
 
 function openTE(id){
   teEntry=images.find(e=>e.id===id);if(!teEntry)return;
-  teLayers=[];teLayerId=0;teSelId=null;teDrag=null;
+  teLayers=cloneTextLayers(teEntry.textLayers||[]);
+  teLayerId=teLayers.reduce((m,l)=>Math.max(m,l.id||0),0);
+  teSelId=teLayers[0]?.id||null;
+  teDrag=null;
   V('teTitle').textContent=`텍스트 편집: ${teEntry.customName||teEntry.name}`;
   V('teBg').value=teEntry.bgColor||'#ffffff';
-  V('teLayerList').innerHTML='';
-  V('teEditPanel').style.display='none';
+  renderTeList();
+  if(teSelId){loadTePanel(teLayers[0]);}else{V('teEditPanel').style.display='none';}
   V('teModal').classList.add('open');
   setTimeout(teRedraw,30);
 }
@@ -728,7 +740,7 @@ function setTeColor(c){V('teColor').value=c;teUpdateSel();}
 function addTeLayer(){
   if(!teEntry)return;
   const {W,H}=getSize();
-  const l={id:++teLayerId,text:'텍스트',font:'Pretendard',size:32,weight:'600',color:'#111111',align:'center',x:W/2,y:H/2};
+  const l={id:++teLayerId,text:'텍스트',font:'Pretendard',size:24,weight:'600',color:'#111111',align:'center',x:W/2,y:H/2};
   teLayers.push(l);teSelId=l.id;
   renderTeList();loadTePanel(l);teRedraw();
 }
@@ -744,7 +756,7 @@ function renderTeList(){
   teLayers.forEach(l=>{
     const div=document.createElement('div');
     div.className='layer-item'+(teSelId===l.id?' sel':'');
-    div.innerHTML=`<span>${l.text||'(빈 텍스트)'}</span><button class="layer-del" onclick="event.stopPropagation();removeTeLayer(${l.id})">✕</button>`;
+    div.innerHTML=`<span>${escapeHTML(l.text||'(빈 텍스트)')}</span><button class="layer-del" onclick="event.stopPropagation();removeTeLayer(${l.id})">x</button>`;
     div.onclick=()=>{teSelId=l.id;renderTeList();loadTePanel(l);teRedraw();};
     c.appendChild(div);
   });
@@ -847,8 +859,9 @@ function updateTeHandles(W,H){
     const hy=(l.y-tH/2-6)*teScale;
     const dh=document.createElement('div');
     dh.className='te-handle'+(teSelId===l.id?' sel':'');
+    dh.title='드래그로 이동 · 더블클릭으로 내용 수정 · 휠로 크기 조절';
     dh.style.cssText=`left:${hx}px;top:${hy}px;width:${Math.max(hw,30)}px;height:${Math.max(hh,20)}px;`;
-    const del=document.createElement('div');del.className='te-hdel';del.textContent='✕';
+    const del=document.createElement('div');del.className='te-hdel';del.textContent='x';
     del.addEventListener('mousedown',e=>{e.stopPropagation();removeTeLayer(l.id);});
     dh.appendChild(del);
     dh.addEventListener('mousedown',e=>{
@@ -856,8 +869,48 @@ function updateTeHandles(W,H){
       teSelId=l.id;renderTeList();loadTePanel(l);teRedraw();
       teDrag={lid:l.id,sx:e.clientX,sy:e.clientY,slx:l.x,sly:l.y};
     });
+    dh.addEventListener('dblclick',e=>{
+      e.stopPropagation();e.preventDefault();
+      teDrag=null;teSelId=l.id;renderTeList();loadTePanel(l);startInlineTextEdit(l,dh);
+    });
+    dh.addEventListener('wheel',e=>{
+      e.preventDefault();e.stopPropagation();
+      teSelId=l.id;
+      l.size=Math.max(8,Math.min(300,l.size+(e.deltaY<0?2:-2)));
+      renderTeList();loadTePanel(l);teRedraw();
+    },{passive:false});
     stage.appendChild(dh);
   });
+}
+
+function startInlineTextEdit(layer,handle){
+  const stage=V('teStage');
+  stage.querySelectorAll('.te-inline-editor').forEach(el=>el.remove());
+  const editor=document.createElement('textarea');
+  editor.className='te-inline-editor';
+  editor.value=layer.text;
+  editor.style.left=handle.style.left;
+  editor.style.top=handle.style.top;
+  editor.style.width=handle.style.width;
+  editor.style.height=handle.style.height;
+  editor.style.font=`${Math.max(12,layer.size*teScale)}px "${layer.font}"`;
+  let done=false;
+  const commit=()=>{
+    if(done)return;done=true;
+    layer.text=editor.value.trim()||'텍스트';
+    editor.remove();
+    renderTeList();loadTePanel(layer);teRedraw();
+  };
+  const cancel=()=>{if(done)return;done=true;editor.remove();teRedraw();};
+  editor.addEventListener('mousedown',e=>e.stopPropagation());
+  editor.addEventListener('dblclick',e=>e.stopPropagation());
+  editor.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){e.preventDefault();cancel();}
+    if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();commit();}
+  });
+  editor.addEventListener('blur',commit);
+  stage.appendChild(editor);
+  editor.focus();editor.select();
 }
 
 window.addEventListener('mousemove',e=>{
@@ -888,6 +941,7 @@ function applyTE(){
     lines.forEach((line,i)=>ctx.fillText(line,l.x,py+i*lh));
   });
   teEntry.bgColor=V('teBg').value;
+  teEntry.textLayers=cloneTextLayers(teLayers);
   teEntry.overlay=oc;
   // 빈 배너면 이미지도 교체
   if(teEntry.isBlank){
