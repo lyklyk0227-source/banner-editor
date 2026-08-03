@@ -50,7 +50,7 @@ body{background:var(--bg);color:var(--text);font-family:'Pretendard','Noto Sans 
 /* fields */
 .field{display:flex;flex-direction:column;gap:5px;}
 .field label{font-size:12px;font-weight:500;color:var(--text2);}
-.field input[type=number],.field input[type=text]{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:7px;padding:8px 10px;font-size:14px;font-family:inherit;transition:border-color .15s;width:100%;}
+.field input[type=number],.field input[type=text],.field input[type=date]{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:7px;padding:8px 10px;font-size:14px;font-family:inherit;transition:border-color .15s;width:100%;}
 .field input:focus{outline:none;border-color:var(--accent);background:#fff;}
 .field-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
 
@@ -244,6 +244,19 @@ body{background:var(--bg);color:var(--text);font-family:'Pretendard','Noto Sans 
     </div>
 
     <button class="btn btn-primary" id="btnZip" disabled onclick="downloadAll()">⬇ 전체 ZIP 다운로드</button>
+    <div>
+      <div class="sec-title">&#44288;&#47532;&#51088; &#46321;&#47197; &#51456;&#48708;</div>
+      <div class="field-row">
+        <div class="field"><label>&#45432;&#52636; &#49884;&#51089;&#51068;</label><input type="date" id="adminStartDate"></div>
+        <div class="field"><label>&#45432;&#52636; &#51333;&#47308;&#51068;</label><input type="date" id="adminEndDate"></div>
+      </div>
+      <p style="font-size:11px;color:var(--muted);line-height:1.6;margin-top:6px">
+        &#52852;&#46300; &#49692;&#49436;&#45824;&#47196; &#54617;&#44553;&#50868;&#50689; #7~#12&#50640; &#48176;&#51221;&#54633;&#45768;&#45796;.
+      </p>
+    </div>
+    <button class="btn btn-ghost" id="btnAdminPackage" disabled onclick="downloadAdminPackage()">
+      &#44288;&#47532;&#51088; &#46321;&#47197; &#51456;&#48708;
+    </button>
   </aside>
 
   <!-- CONTENT -->
@@ -372,6 +385,17 @@ body{background:var(--bg);color:var(--text);font-family:'Pretendard','Noto Sans 
 
 <script>
 const V = id => document.getElementById(id);
+function formatLocalDate(date){
+  const y=date.getFullYear(),m=String(date.getMonth()+1).padStart(2,'0'),d=String(date.getDate()).padStart(2,'0');
+  return `${y}-${m}-${d}`;
+}
+function initAdminDates(){
+  const start=new Date(),end=new Date(start);
+  end.setDate(end.getDate()+7);
+  V('adminStartDate').value=formatLocalDate(start);
+  V('adminEndDate').value=formatLocalDate(end);
+}
+initAdminDates();
 
 // ═══════════════════════════════
 //  STATE
@@ -592,6 +616,7 @@ function updateUI(){
   V('topbar').style.display=n?'flex':'none';
   V('countBadge').textContent=n;
   V('btnZip').disabled=!n;
+  V('btnAdminPackage').disabled=n!==6;
 }
 
 // ═══════════════════════════════
@@ -700,6 +725,94 @@ function downloadSingle(id){
   const a=document.createElement('a');
   a.href=buildExport(entry).toDataURL('image/png');
   a.download=`${getFileName(entry.name,entry)}.png`;a.click();
+}
+
+function getAdminTitle(entry){
+  return (entry.customName||entry.name.replace(/\.[^.]+$/,'')).trim()||`banner-${entry.id}`;
+}
+
+function safeAdminFileName(value){
+  return value.replace(/[\\/:*?"<>|]/g,'_').replace(/\s+/g,'_').replace(/_+/g,'_').slice(0,80)||'banner';
+}
+
+function normalizeAdminUrl(value){
+  const url=(value||'').trim();
+  return /^https?:\/\//i.test(url)?url:`https://${url}`;
+}
+
+function csvCell(value){
+  return `"${String(value??'').replace(/"/g,'""')}"`;
+}
+
+function exportCanvasBlob(entry){
+  return new Promise((resolve,reject)=>buildExport(entry).toBlob(blob=>blob?resolve(blob):reject(new Error('PNG export failed')),'image/png'));
+}
+
+function saveBlob(blob,fileName){
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=fileName;a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+async function downloadAdminPackage(){
+  images.forEach(entry=>{
+    const input=V(`clink-${entry.id}`);
+    if(input)entry.link=input.value.trim();
+  });
+  if(images.length!==6){
+    alert('\uAD00\uB9AC\uC790 \uB4F1\uB85D\uC6A9 \uD328\uD0A4\uC9C0\uB294 \uC774\uBBF8\uC9C0 6\uAC1C\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4.');return;
+  }
+  const missing=images.map((entry,index)=>!entry.link?index+1:null).filter(Boolean);
+  if(missing.length){
+    alert(`\uB9C1\uD06C\uAC00 \uC5C6\uB294 \uBC30\uB108: ${missing.join(', ')}\uBC88`);return;
+  }
+  const startDate=V('adminStartDate').value,endDate=V('adminEndDate').value;
+  if(!startDate||!endDate){alert('\uB178\uCD9C \uC2DC\uC791\uC77C\uACFC \uC885\uB8CC\uC77C\uC744 \uC785\uB825\uD574 \uC8FC\uC138\uC694.');return;}
+  if(endDate<startDate){alert('\uB178\uCD9C \uC885\uB8CC\uC77C\uC740 \uC2DC\uC791\uC77C\uBCF4\uB2E4 \uBE60\uB97C \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.');return;}
+
+  const {W,H}=getSize(),button=V('btnAdminPackage');
+  const pw=V('progressWrap'),pf=V('progressFill'),pl=V('progressLabel');
+  const originalLabel=button.textContent;
+  button.disabled=true;V('btnZip').disabled=true;pw.style.display='block';
+  try{
+    const zip=new JSZip();
+    const rootName=`edubank_admin_${startDate.replaceAll('-','')}_${endDate.replaceAll('-','')}`;
+    const folder=zip.folder(rootName);
+    const manifest={
+      packageVersion:1,type:'edubank-class-operation',category:'277',
+      categoryName:'\uD559\uAE09\uC6B4\uC601',origin:'\uC5D0\uB4C0\uBC45\uD06C',
+      output:{width:W,height:H,radius:getRadius()},startDate,endDate,
+      generatedAt:new Date().toISOString(),items:[]
+    };
+    for(let i=0;i<images.length;i++){
+      const entry=images[i],position=String(7+i),title=getAdminTitle(entry);
+      const imageFile=`${String(i+1).padStart(2,'0')}_${safeAdminFileName(title)}.png`;
+      pl.textContent=`\uAD00\uB9AC\uC790 \uB4F1\uB85D\uC6A9 \uC774\uBBF8\uC9C0 \uC0DD\uC131 \uC911... ${i+1}/6`;
+      pf.style.width=((i+1)/images.length*70)+'%';
+      folder.file(imageFile,await exportCanvasBlob(entry));
+      manifest.items.push({
+        order:i+1,position,title,url:normalizeAdminUrl(entry.link),image:imageFile
+      });
+      await new Promise(resolve=>setTimeout(resolve,5));
+    }
+    folder.file('registration.json',JSON.stringify(manifest,null,2));
+    const csvRows=[[
+      '\uC21C\uBC88','\uB4F1\uB85D\uC704\uCE58','\uBC30\uB108\uBA85','\uC774\uBBF8\uC9C0\uD30C\uC77C','URL','\uB178\uCD9C\uC2DC\uC791\uC77C','\uB178\uCD9C\uC885\uB8CC\uC77C'
+    ],...manifest.items.map(item=>[
+      item.order,`#${item.position}`,item.title,item.image,item.url,startDate,endDate
+    ])];
+    folder.file('\uB4F1\uB85D\uBAA9\uB85D.csv','\uFEFF'+csvRows.map(row=>row.map(csvCell).join(',')).join('\r\n'));
+    pl.textContent='\uAD00\uB9AC\uC790 \uB4F1\uB85D\uC6A9 ZIP \uC555\uCD95 \uC911...';
+    const zipBlob=await zip.generateAsync(
+      {type:'blob',compression:'DEFLATE',compressionOptions:{level:9}},
+      meta=>{pf.style.width=(70+meta.percent*.3).toFixed(0)+'%';}
+    );
+    saveBlob(zipBlob,`${rootName}.zip`);
+  }catch(error){
+    console.error(error);alert('\uAD00\uB9AC\uC790 \uB4F1\uB85D\uC6A9 \uD328\uD0A4\uC9C0\uB97C \uB9CC\uB4E4\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.');
+  }finally{
+    button.textContent=originalLabel;pw.style.display='none';pf.style.width='0%';updateUI();
+  }
 }
 
 async function downloadAll(){
