@@ -672,14 +672,26 @@ function getFileName(name,entry){
 }
 
 function buildExport(entry){
-  const {W,H}=getSize();const r=getRadius();
-  const c=document.createElement('canvas');
-  c.width=W;c.height=H;
+  const {W,H}=getSize();
+  const sourceScale=Math.floor(Math.min(
+    entry.img.naturalWidth/W,
+    entry.img.naturalHeight/H
+  ));
+  const renderScale=Math.max(1,Math.min(4,sourceScale));
+  const renderW=W*renderScale,renderH=H*renderScale;
+  const renderCanvas=document.createElement('canvas');
+  renderCanvas.width=renderW;renderCanvas.height=renderH;
+  const renderCtx=renderCanvas.getContext('2d');
+  renderCtx.imageSmoothingEnabled=true;renderCtx.imageSmoothingQuality='high';
+  const renderRadius=getRadius()*renderScale;
+  if(renderRadius)applyRadiusClip(renderCtx,renderW,renderH,renderRadius);
+  drawBase(renderCtx,entry,renderW,renderH);
+  if(entry.overlay)renderCtx.drawImage(entry.overlay,0,0,renderW,renderH);
+
+  const c=document.createElement('canvas');c.width=W;c.height=H;
   const ctx=c.getContext('2d');
   ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
-  if(r)applyRadiusClip(ctx,W,H,r);
-  drawBase(ctx,entry,W,H);
-  if(entry.overlay)ctx.drawImage(entry.overlay,0,0,W,H);
+  ctx.drawImage(renderCanvas,0,0,renderW,renderH,0,0,W,H);
   return c;
 }
 
