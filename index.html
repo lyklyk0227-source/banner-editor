@@ -27,9 +27,22 @@ body{background:var(--bg);color:var(--text);font-family:'Pretendard','Noto Sans 
 .layout{display:grid;grid-template-columns:320px 1fr;min-height:calc(100vh - 62px);}
 
 .sidebar{background:var(--surface);border-right:1px solid var(--border);padding:20px 16px;display:flex;flex-direction:column;gap:18px;position:sticky;top:62px;height:calc(100vh - 62px);overflow-y:auto;}
-.content{padding:20px;display:flex;flex-direction:column;gap:14px;}
+.content{padding:20px 20px 190px;display:flex;flex-direction:column;gap:14px;}
 
 .sec-title{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+
+/* usage guide */
+.usage-layer{position:fixed;right:18px;bottom:18px;z-index:60;width:300px;max-width:calc(100vw - 32px);max-height:calc(100vh - 96px);background:var(--surface);border:1px solid #d6dfff;border-radius:8px;box-shadow:0 12px 32px rgba(30,48,100,.16);overflow:auto;}
+.usage-layer.hide{display:none;}
+.usage-head{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--accent-light);border-bottom:1px solid #d6dfff;padding:9px 11px;position:sticky;top:0;}
+.usage-head strong{font-size:13px;color:var(--accent);}
+.usage-close{width:26px;height:26px;border:none;border-radius:6px;background:#fff;color:var(--muted);font-size:16px;line-height:1;cursor:pointer;font-family:inherit;font-weight:700;display:flex;align-items:center;justify-content:center;}
+.usage-close:hover{color:var(--red);}
+.usage-steps{list-style:none;display:flex;flex-direction:column;gap:7px;padding:11px;counter-reset:usage-step;}
+.usage-steps li{counter-increment:usage-step;display:grid;grid-template-columns:20px 1fr;gap:8px;color:var(--text2);font-size:12px;line-height:1.42;}
+.usage-steps li::before{content:counter(usage-step);width:20px;height:20px;border-radius:50%;background:#fff;color:var(--accent);border:1px solid #c9d6ff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;}
+.usage-steps strong{color:var(--text);font-size:12px;margin-right:4px;}
+.usage-tip{margin:0 11px 11px;padding-top:9px;border-top:1px solid #edf1ff;font-size:11px;line-height:1.55;color:var(--text2);}
 
 /* dropzone */
 .dropzone{border:1.5px dashed var(--border);border-radius:8px;padding:20px 14px;text-align:center;cursor:pointer;transition:all .2s;position:relative;background:var(--surface2);}
@@ -139,6 +152,8 @@ body{background:var(--bg);color:var(--text);font-family:'Pretendard','Noto Sans 
 .empty-state{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:60px 20px;text-align:center;box-shadow:var(--shadow);}
 .empty-state .ei{font-size:44px;opacity:.18;margin-bottom:14px;}
 .empty-state p{font-size:13px;line-height:1.8;color:var(--text2);}
+.empty-state .hint{display:block;margin-top:4px;font-size:12px;color:var(--muted);}
+.empty-state strong{color:var(--accent);font-weight:700;}
 
 /* progress */
 .progress-wrap{display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;}
@@ -190,7 +205,7 @@ body{background:var(--bg);color:var(--text);font-family:'Pretendard','Noto Sans 
 
 .canvas-size-info{font-size:10px;color:var(--muted);text-align:center;}
 
-@media(max-width:700px){.layout{grid-template-columns:1fr;}.sidebar{position:static;height:auto;}.modal-body{grid-template-columns:1fr;}.modal-left{border-right:none;border-bottom:1px solid var(--border);}}
+@media(max-width:700px){.layout{grid-template-columns:1fr;}.sidebar{position:static;height:auto;}.modal-body{grid-template-columns:1fr;}.modal-left{border-right:none;border-bottom:1px solid var(--border);}.usage-layer{left:12px;right:12px;bottom:12px;width:auto;max-width:none;}}
 </style>
 </head>
 <body>
@@ -261,10 +276,25 @@ body{background:var(--bg);color:var(--text);font-family:'Pretendard','Noto Sans 
     </div>
     <div class="empty-state" id="emptyState">
       <div class="ei">🏞️</div>
-      <p>이미지를 추가하거나<br>빈 배너로 시작해보세요</p>
+      <p>왼쪽에서 이미지를 추가하거나<br>빈 배너로 시작해보세요<span class="hint">자세한 사용법은 우측 하단에서 확인할 수 있어요</span></p>
     </div>
     <div class="img-grid" id="imgGrid"></div>
   </main>
+</div>
+
+<div class="usage-layer" id="usageLayer" role="dialog" aria-label="사용법 안내">
+  <div class="usage-head">
+    <strong>사용법</strong>
+    <button class="usage-close" type="button" aria-label="사용법 닫기" onclick="closeUsageGuide()">×</button>
+  </div>
+  <ol class="usage-steps">
+    <li><span><strong>사이즈</strong>프리셋을 고르거나 가로·세로 값을 입력합니다.</span></li>
+    <li><span><strong>추가</strong>이미지는 드래그/클릭, 캡처는 Ctrl+V로 넣습니다.</span></li>
+    <li><span><strong>조절</strong>미리보기에서 드래그하고 휠로 확대·축소합니다.</span></li>
+    <li><span><strong>글자</strong>글자 편집에서 문구, 폰트, 색상, 위치를 바꿉니다.</span></li>
+    <li><span><strong>저장</strong>개별 PNG 또는 전체 ZIP으로 다운로드합니다.</span></li>
+  </ol>
+  <div class="usage-tip">플로팅배너 프리셋은 둥근 모서리 값이 함께 적용됩니다.</div>
 </div>
 
 <!-- TEXT EDITOR MODAL -->
@@ -385,6 +415,11 @@ function escapeHTML(v){
 function cloneTextLayers(layers){
   return (layers||[]).map(l=>({...l}));
 }
+function closeUsageGuide(){
+  V('usageLayer')?.classList.add('hide');
+  try{sessionStorage.setItem('usageGuideClosed','1');}catch(e){}
+}
+try{if(sessionStorage.getItem('usageGuideClosed')==='1')closeUsageGuide();}catch(e){}
 
 // ═══════════════════════════════
 //  FILE INPUT
