@@ -782,7 +782,7 @@ async function downloadAll(){
     folder.file('banner-manifest.json',JSON.stringify(manifest,null,2));
     const linkText=manifest.items.map(item=>[
       `링크 제목: ${item.title}`,
-      `배너명: ${item.image.replace(/\.png$/i,'')}`,
+      `배너명: ${item.title}`,
       `연결 URL: ${item.url||''}`
     ].join('\r\n')).join('\r\n\r\n');
     folder.file('링크목록.txt','\uFEFF'+linkText);
