@@ -103,8 +103,11 @@ body{background:var(--bg);color:var(--text);font-family:'Pretendard','Noto Sans 
 
 /* grid */
 .img-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;}
-.img-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:visible;box-shadow:var(--shadow);transition:box-shadow .15s,border-color .15s;display:flex;flex-direction:column;}
+.img-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:visible;box-shadow:var(--shadow);transition:box-shadow .15s,border-color .15s,opacity .15s,transform .15s;display:flex;flex-direction:column;}
 .img-card:hover{box-shadow:0 4px 18px rgba(0,0,0,.1);border-color:#c0c6d4;}
+.img-card.dragging{opacity:.45;transform:scale(.98);}
+.img-card.drop-before{box-shadow:-4px 0 0 var(--accent),var(--shadow);}
+.img-card.drop-after{box-shadow:4px 0 0 var(--accent),var(--shadow);}
 
 /* card preview */
 .card-preview{width:100%;position:relative;background:#e4e6ec;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0;flex-shrink:0;}
@@ -116,6 +119,9 @@ body{background:var(--bg);color:var(--text);font-family:'Pretendard','Noto Sans 
 /* card body */
 .card-body{padding:10px 12px 6px;}
 .card-name-wrap{display:flex;align-items:center;gap:5px;}
+.drag-handle{width:22px;height:22px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--muted);display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1;cursor:grab;flex-shrink:0;user-select:none;}
+.drag-handle:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light);}
+.drag-handle:active{cursor:grabbing;}
 .card-name{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;cursor:text;}
 .card-name:hover{color:var(--accent);}
 .card-name-input{font-size:13px;font-weight:600;font-family:inherit;color:var(--text);background:#fff;border:1.5px solid var(--accent);border-radius:5px;padding:2px 7px;width:100%;outline:none;box-shadow:0 0 0 3px rgba(59,110,248,.1);}
@@ -549,6 +555,7 @@ function appendCard(entry){
     </div>
     <div class="card-body">
       <div class="card-name-wrap">
+        <div class="drag-handle" draggable="true" title="드래그해서 다운로드 순서 변경">↕</div>
         <div class="card-name" id="cname-${entry.id}" ondblclick="startRename(${entry.id})" title="${entry.name}">${entry.name}</div>
         <button class="copy-btn" id="cncopy-${entry.id}" onclick="copyName(${entry.id})">복사</button>
       </div>
@@ -569,8 +576,84 @@ function appendCard(entry){
       <button class="card-btn te" onclick="openTE(${entry.id})">✏️ 글자 편집</button>
       <button class="card-btn rm" onclick="removeCard(${entry.id})">✕</button>
     </div>`;
+  bindCardReorder(card,entry);
   V('imgGrid').appendChild(card);
 }
+
+let draggedCardId=null;
+
+function bindCardReorder(card,entry){
+  const handle=card.querySelector('.drag-handle');
+  if(!handle)return;
+  handle.addEventListener('dragstart',e=>{
+    draggedCardId=entry.id;
+    card.classList.add('dragging');
+    e.dataTransfer.effectAllowed='move';
+    e.dataTransfer.setData('text/plain',String(entry.id));
+  });
+  handle.addEventListener('dragend',()=>{
+    draggedCardId=null;
+    clearReorderMarks();
+    card.classList.remove('dragging');
+    syncImageOrderFromCards();
+  });
+  card.addEventListener('dragover',e=>{
+    if(!draggedCardId||draggedCardId===entry.id)return;
+    e.preventDefault();
+    const after=isAfterCardMidpoint(card,e.clientX,e.clientY);
+    clearReorderMarks();
+    card.classList.add(after?'drop-after':'drop-before');
+    e.dataTransfer.dropEffect='move';
+  });
+  card.addEventListener('dragleave',e=>{
+    if(!card.contains(e.relatedTarget))card.classList.remove('drop-before','drop-after');
+  });
+  card.addEventListener('drop',e=>{
+    if(!draggedCardId||draggedCardId===entry.id)return;
+    e.preventDefault();
+    const grid=V('imgGrid');
+    const dragged=V(`card-${draggedCardId}`);
+    if(!grid||!dragged)return;
+    if(isAfterCardMidpoint(card,e.clientX,e.clientY)){
+      grid.insertBefore(dragged,card.nextSibling);
+    }else{
+      grid.insertBefore(dragged,card);
+    }
+    clearReorderMarks();
+    syncImageOrderFromCards();
+  });
+}
+
+function isAfterCardMidpoint(card,x,y){
+  const rect=card.getBoundingClientRect();
+  return Math.abs(x-(rect.left+rect.width/2))>Math.abs(y-(rect.top+rect.height/2))
+    ? x>rect.left+rect.width/2
+    : y>rect.top+rect.height/2;
+}
+
+function clearReorderMarks(){
+  document.querySelectorAll('.img-card.drop-before,.img-card.drop-after').forEach(card=>card.classList.remove('drop-before','drop-after'));
+}
+
+function syncImageOrderFromCards(){
+  const ids=[...V('imgGrid').querySelectorAll('.img-card')].map(card=>parseInt(card.id.replace('card-',''),10));
+  if(!ids.length)return;
+  const byId=new Map(images.map(entry=>[entry.id,entry]));
+  images=ids.map(id=>byId.get(id)).filter(Boolean);
+}
+
+V('imgGrid').addEventListener('dragover',e=>{
+  if(!draggedCardId||e.target.closest('.img-card'))return;
+  e.preventDefault();
+  clearReorderMarks();
+  e.dataTransfer.dropEffect='move';
+});
+V('imgGrid').addEventListener('drop',e=>{
+  if(!draggedCardId||e.target.closest('.img-card'))return;
+  e.preventDefault();
+  const dragged=V(`card-${draggedCardId}`);
+  if(dragged){V('imgGrid').appendChild(dragged);syncImageOrderFromCards();}
+});
 
 function renderCard(entry){
   const {W,H}=getSize();
