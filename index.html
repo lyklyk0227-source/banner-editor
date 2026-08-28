@@ -744,10 +744,6 @@ function safePackageFileName(value){
   return value.replace(/[\\/:*?"<>|]/g,'_').replace(/\s+/g,'_').replace(/_+/g,'_').slice(0,80)||'banner';
 }
 
-function packageCsvCell(value){
-  return `"${String(value??'').replace(/"/g,'""')}"`;
-}
-
 function exportPackageBlob(entry){
   return new Promise((resolve,reject)=>buildExport(entry).toBlob(blob=>blob?resolve(blob):reject(new Error('PNG export failed')),'image/png'));
 }
@@ -784,10 +780,12 @@ async function downloadAll(){
       await new Promise(resolve=>setTimeout(resolve,5));
     }
     folder.file('banner-manifest.json',JSON.stringify(manifest,null,2));
-    const csvRows=[[
-      '\uC21C\uBC88','\uBC30\uB108\uBA85','\uC774\uBBF8\uC9C0\uD30C\uC77C','URL'
-    ],...manifest.items.map(item=>[item.order,item.title,item.image,item.url])];
-    folder.file('\uB9C1\uD06C\uBAA9\uB85D.csv','\uFEFF'+csvRows.map(row=>row.map(packageCsvCell).join(',')).join('\r\n'));
+    const linkText=manifest.items.map(item=>[
+      `링크 제목: ${item.title}`,
+      `배너명: ${item.image.replace(/\.png$/i,'')}`,
+      `연결 URL: ${item.url||''}`
+    ].join('\r\n')).join('\r\n\r\n');
+    folder.file('링크목록.txt','\uFEFF'+linkText);
     pl.textContent='ZIP \uC555\uCD95 \uC911...';
     const zipBlob=await zip.generateAsync(
       {type:'blob',compression:'DEFLATE',compressionOptions:{level:9}},
