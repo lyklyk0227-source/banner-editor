@@ -211,6 +211,10 @@ body{background:var(--bg);color:var(--text);font-family:'Pretendard','Noto Sans 
 .te-resize{position:absolute;right:-8px;bottom:-8px;width:16px;height:16px;background:#fff;border:2px solid var(--accent);border-radius:4px;cursor:nwse-resize;opacity:0;box-shadow:0 1px 5px rgba(59,110,248,.25);}
 .te-resize::after{content:'';position:absolute;right:2px;bottom:2px;width:6px;height:6px;border-right:2px solid var(--accent);border-bottom:2px solid var(--accent);}
 .te-handle.sel .te-resize{opacity:1;}
+.te-image-handle{border-style:solid;border-color:rgba(22,163,74,.75);}
+.te-image-handle.sel{border-color:var(--accent);}
+.te-paste-btn{border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text2);padding:6px 9px;font-size:11px;font-family:inherit;font-weight:600;cursor:pointer;white-space:nowrap;}
+.te-paste-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light);}
 .te-inline-editor{position:absolute;z-index:5;min-width:48px;min-height:28px;border:2px solid var(--accent);border-radius:6px;background:#fff;color:var(--text);box-shadow:0 8px 24px rgba(59,110,248,.22);padding:4px 6px;resize:none;outline:none;line-height:1.25;font-family:inherit;overflow:hidden;}
 
 .canvas-size-info{font-size:10px;color:var(--muted);text-align:center;}
@@ -401,8 +405,11 @@ body{background:var(--bg);color:var(--text);font-family:'Pretendard','Noto Sans 
 
       <!-- RIGHT: canvas preview -->
       <div class="modal-right">
-        <div style="font-size:11px;font-weight:600;color:var(--text2);width:100%">미리보기 (실제 출력과 동일)</div>
-        <div class="canvas-stage" id="teStage">
+        <div style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <div style="font-size:11px;font-weight:600;color:var(--text2)">미리보기 (실제 출력과 동일)</div>
+          <button type="button" class="te-paste-btn" onclick="pasteImageFromClipboard()" title="복사한 이미지를 붙여넣기">📋 이미지 붙여넣기</button>
+        </div>
+        <div class="canvas-stage" id="teStage" tabindex="0">
           <canvas id="teCanvas"></canvas>
         </div>
         <div class="canvas-size-info" id="teSizeInfo">—</div>
@@ -430,6 +437,9 @@ function escapeHTML(v){
 function cloneTextLayers(layers){
   return (layers||[]).map(l=>({...l}));
 }
+function cloneImageLayers(layers){
+  return (layers||[]).map(l=>({...l,img:null}));
+}
 function closeUsageGuide(){
   V('usageLayer')?.classList.add('hide');
   try{sessionStorage.setItem('usageGuideClosed','1');}catch(e){}
@@ -447,6 +457,7 @@ V('dropzone').addEventListener('drop',e=>{
   addFiles([...e.dataTransfer.files].filter(f=>f.type.startsWith('image/')));
 });
 document.addEventListener('paste',e=>{
+  if(V('teModal')?.classList.contains('open'))return;
   const items=(e.clipboardData||e.originalEvent?.clipboardData)?.items;
   if(!items)return;
   for(const item of items){
@@ -927,19 +938,22 @@ async function downloadImagesOnly(){
 // ═══════════════════════════════
 //  TEXT EDITOR MODAL
 // ═══════════════════════════════
-let teEntry=null,teLayers=[],teLayerId=0,teSelId=null,teDrag=null,teScale=1;
+let teEntry=null,teLayers=[],teLayerId=0,teSelId=null,teImageLayers=[],teImageId=0,teImageSelId=null,teDrag=null,teScale=1;
 
 function openTE(id){
   teEntry=images.find(e=>e.id===id);if(!teEntry)return;
   teLayers=cloneTextLayers(teEntry.textLayers||[]);
   teLayerId=teLayers.reduce((m,l)=>Math.max(m,l.id||0),0);
-  teSelId=teLayers[0]?.id||null;
+  teImageLayers=cloneImageLayers(teEntry.imageLayers||[]);
+  teImageId=teImageLayers.reduce((m,l)=>Math.max(m,l.id||0),0);
+  teSelId=teLayers[0]?.id||null;teImageSelId=teSelId?null:(teImageLayers[0]?.id||null);
   teDrag=null;
   V('teTitle').textContent=`텍스트 편집: ${teEntry.customName||teEntry.name}`;
   V('teBg').value=teEntry.bgColor||'#ffffff';
   renderTeList();
   if(teSelId){loadTePanel(teLayers[0]);}else{V('teEditPanel').style.display='none';}
   V('teModal').classList.add('open');
+  teImageLayers.forEach(layer=>loadTeImage(layer));
   setTimeout(teRedraw,30);
 }
 function closeTE(){V('teModal').classList.remove('open');}
@@ -948,11 +962,55 @@ V('teModal').addEventListener('click',e=>{if(e.target===V('teModal'))closeTE();}
 function setTeBg(c){V('teBg').value=c;teRedraw();}
 function setTeColor(c){V('teColor').value=c;teUpdateSel();}
 
+function loadTeImage(layer){
+  if(layer.img?.complete)return;
+  const img=new Image();
+  img.onload=()=>{layer.img=img;teRedraw();};
+  img.src=layer.src;
+}
+
+async function addTeImageDataUrl(src){
+  if(!teEntry||!src)return;
+  const img=new Image();
+  img.src=src;
+  try{await img.decode();}catch(e){return;}
+  const {W,H}=getSize();
+  const scale=Math.min(W*.45/img.naturalWidth,H*.45/img.naturalHeight,1);
+  const layer={id:++teImageId,src,img,x:W/2,y:H/2,w:Math.max(24,img.naturalWidth*scale),h:Math.max(24,img.naturalHeight*scale)};
+  teImageLayers.push(layer);teImageSelId=layer.id;teSelId=null;
+  V('teEditPanel').style.display='none';teRedraw();
+}
+
+function addTeImageBlob(blob){
+  if(!teEntry||!blob)return;
+  const reader=new FileReader();
+  reader.onload=()=>addTeImageDataUrl(reader.result);
+  reader.readAsDataURL(blob);
+}
+
+async function pasteImageFromClipboard(){
+  try{
+    const items=await navigator.clipboard.read();
+    for(const item of items){
+      const type=item.types.find(t=>t.startsWith('image/'));
+      if(type){addTeImageBlob(await item.getType(type));return;}
+    }
+  }catch(e){}
+  V('teStage').focus();
+}
+
+document.addEventListener('paste',e=>{
+  if(!V('teModal').classList.contains('open'))return;
+  const item=[...(e.clipboardData?.items||[])].find(i=>i.type.startsWith('image/'));
+  if(!item)return;
+  e.preventDefault();addTeImageBlob(item.getAsFile());
+});
+
 function addTeLayer(){
   if(!teEntry)return;
   const {W,H}=getSize();
   const l={id:++teLayerId,text:'텍스트',font:'Pretendard',size:24,weight:'600',color:'#111111',textBg:'',align:'center',x:W/2,y:H/2};
-  teLayers.push(l);teSelId=l.id;
+  teLayers.push(l);teSelId=l.id;teImageSelId=null;
   renderTeList();loadTePanel(l);teRedraw();
   requestAnimationFrame(()=>{
     const handle=V('teStage').querySelector(`.te-handle[data-layer-id="${l.id}"]`);
@@ -966,13 +1024,19 @@ function removeTeLayer(id){
   renderTeList();teRedraw();
 }
 
+function removeTeImage(id){
+  teImageLayers=teImageLayers.filter(l=>l.id!==id);
+  if(teImageSelId===id)teImageSelId=null;
+  teRedraw();
+}
+
 function renderTeList(){
   const c=V('teLayerList');c.innerHTML='';
   teLayers.forEach(l=>{
     const div=document.createElement('div');
     div.className='layer-item'+(teSelId===l.id?' sel':'');
     div.innerHTML=`<span>${escapeHTML(l.text||'(빈 텍스트)')}</span><button class="layer-del" onclick="event.stopPropagation();removeTeLayer(${l.id})">x</button>`;
-    div.onclick=()=>{teSelId=l.id;renderTeList();loadTePanel(l);teRedraw();};
+    div.onclick=()=>{teSelId=l.id;teImageSelId=null;renderTeList();loadTePanel(l);teRedraw();};
     c.appendChild(div);
   });
 }
@@ -1070,6 +1134,11 @@ function teRedraw(){
 
   if(r)ctx.restore();
 
+  // 붙여넣은 이미지 레이어
+  teImageLayers.forEach(l=>{
+    if(l.img?.complete)ctx.drawImage(l.img,l.x-l.w/2,l.y-l.h/2,l.w,l.h);
+  });
+
   // 텍스트 레이어
   teLayers.forEach(l=>{
     if(!l.text.trim())return;
@@ -1083,6 +1152,31 @@ function teRedraw(){
 function updateTeHandles(W,H){
   const stage=V('teStage');
   stage.querySelectorAll('.te-handle').forEach(h=>h.remove());
+  teImageLayers.forEach(l=>{
+    if(!l.img?.complete)return;
+    const dh=document.createElement('div');
+    dh.className='te-handle te-image-handle'+(teImageSelId===l.id?' sel':'');
+    dh.dataset.imageLayerId=l.id;
+    dh.title='드래그로 이동 · 오른쪽 아래 조절점으로 크기 변경';
+    dh.style.cssText=`left:${(l.x-l.w/2)*teScale}px;top:${(l.y-l.h/2)*teScale}px;width:${Math.max(l.w*teScale,24)}px;height:${Math.max(l.h*teScale,24)}px;`;
+    const del=document.createElement('div');del.className='te-hdel';del.textContent='x';
+    del.addEventListener('mousedown',e=>{e.stopPropagation();removeTeImage(l.id);});
+    dh.appendChild(del);
+    const resize=document.createElement('div');resize.className='te-resize';resize.title='드래그해서 이미지 크기 조절';
+    resize.addEventListener('mousedown',e=>{
+      e.stopPropagation();e.preventDefault();
+      teImageSelId=l.id;teSelId=null;V('teEditPanel').style.display='none';
+      teDrag={type:'image-resize',lid:l.id,sx:e.clientX,sy:e.clientY,sw:l.w,sh:l.h};
+    });
+    dh.appendChild(resize);
+    dh.addEventListener('mousedown',e=>{
+      e.stopPropagation();e.preventDefault();
+      teImageSelId=l.id;teSelId=null;V('teEditPanel').style.display='none';renderTeList();
+      stage.querySelectorAll('.te-handle').forEach(handle=>handle.classList.toggle('sel',handle===dh));
+      teDrag={type:'image-move',lid:l.id,sx:e.clientX,sy:e.clientY,slx:l.x,sly:l.y};
+    });
+    stage.appendChild(dh);
+  });
   teLayers.forEach(l=>{
     if(!l.text.trim())return;
     const mc=V('teCanvas'),ctx=mc.getContext('2d');
@@ -1101,23 +1195,23 @@ function updateTeHandles(W,H){
     const resize=document.createElement('div');resize.className='te-resize';resize.title='드래그해서 글자 크기 조절';
     resize.addEventListener('mousedown',e=>{
       e.stopPropagation();e.preventDefault();
-      teSelId=l.id;renderTeList();loadTePanel(l);
+      teSelId=l.id;teImageSelId=null;renderTeList();loadTePanel(l);
       teDrag={type:'resize',lid:l.id,sx:e.clientX,sy:e.clientY,ss:l.size,sw:Math.max(hw,30),sh:Math.max(hh,20)};
     });
     dh.appendChild(resize);
     dh.addEventListener('mousedown',e=>{
       e.stopPropagation();e.preventDefault();
-      teSelId=l.id;renderTeList();loadTePanel(l);
+      teSelId=l.id;teImageSelId=null;renderTeList();loadTePanel(l);
       stage.querySelectorAll('.te-handle').forEach(handle=>handle.classList.toggle('sel',handle===dh));
       teDrag={type:'move',lid:l.id,sx:e.clientX,sy:e.clientY,slx:l.x,sly:l.y};
     });
     dh.addEventListener('dblclick',e=>{
       e.stopPropagation();e.preventDefault();
-      teDrag=null;teSelId=l.id;renderTeList();loadTePanel(l);startInlineTextEdit(l,dh);
+      teDrag=null;teSelId=l.id;teImageSelId=null;renderTeList();loadTePanel(l);startInlineTextEdit(l,dh);
     });
     dh.addEventListener('wheel',e=>{
       e.preventDefault();e.stopPropagation();
-      teSelId=l.id;
+      teSelId=l.id;teImageSelId=null;
       l.size=Math.max(8,Math.min(300,l.size+(e.deltaY<0?2:-2)));
       renderTeList();loadTePanel(l);teRedraw();
     },{passive:false});
@@ -1159,6 +1253,18 @@ function startInlineTextEdit(layer,handle){
 
 window.addEventListener('mousemove',e=>{
   if(!teDrag)return;
+  if(teDrag.type==='image-move'||teDrag.type==='image-resize'){
+    const imageLayer=teImageLayers.find(x=>x.id===teDrag.lid);if(!imageLayer)return;
+    if(teDrag.type==='image-resize'){
+      const dx=(e.clientX-teDrag.sx)/teScale,dy=(e.clientY-teDrag.sy)/teScale;
+      const ratio=Math.max(.1,1+(dx*teDrag.sw+dy*teDrag.sh)/(teDrag.sw*teDrag.sw+teDrag.sh*teDrag.sh));
+      imageLayer.w=Math.max(20,teDrag.sw*ratio);imageLayer.h=Math.max(20,teDrag.sh*ratio);
+    }else{
+      imageLayer.x=teDrag.slx+(e.clientX-teDrag.sx)/teScale;
+      imageLayer.y=teDrag.sly+(e.clientY-teDrag.sy)/teScale;
+    }
+    teRedraw();return;
+  }
   const l=teLayers.find(x=>x.id===teDrag.lid);if(!l)return;
   if(teDrag.type==='resize'){
     const dx=e.clientX-teDrag.sx,dy=e.clientY-teDrag.sy;
@@ -1182,12 +1288,16 @@ function applyTE(){
   if(r){ctx.save();applyRadiusClip(ctx,W,H,r);}
   if(!teEntry.isBlank)drawBase(ctx,teEntry,W,H);
   if(r)ctx.restore();
+  teImageLayers.forEach(l=>{
+    if(l.img?.complete)ctx.drawImage(l.img,l.x-l.w/2,l.y-l.h/2,l.w,l.h);
+  });
   teLayers.forEach(l=>{
     if(!l.text.trim())return;
     drawTextLayer(ctx,l);
   });
   teEntry.bgColor=V('teBg').value;
   teEntry.textLayers=cloneTextLayers(teLayers);
+  teEntry.imageLayers=teImageLayers.map(({img,...layer})=>({...layer}));
   teEntry.overlay=oc;
   // 빈 배너면 이미지도 교체
   if(teEntry.isBlank){
