@@ -335,9 +335,6 @@ body{background:var(--bg);color:var(--text);font-family:'Pretendard','Noto Sans 
 
         <div class="msec" style="margin-top:4px">⚙️ 텍스트 설정</div>
         <div id="teEditPanel" style="display:none;flex-direction:column;gap:10px;">
-          <div class="mfield"><label>내용</label>
-            <textarea id="teTxt" oninput="teUpdateSel()"></textarea>
-          </div>
           <div class="mfield"><label>폰트</label>
             <select id="teFont" onchange="teUpdateSel()">
               <optgroup label="고딕">
@@ -399,7 +396,7 @@ body{background:var(--bg);color:var(--text);font-family:'Pretendard','Noto Sans 
             </div>
           </div>
         </div>
-        <p style="font-size:10px;color:var(--muted);line-height:1.7;margin-top:4px">텍스트를 드래그해 이동하고, 선택 테두리 오른쪽 아래 조절점으로 크기를 바꾸세요</p>
+        <p style="font-size:10px;color:var(--muted);line-height:1.7;margin-top:4px">미리보기의 글자를 더블클릭해 수정하고, 드래그해 이동할 수 있어요</p>
       </div>
 
       <!-- RIGHT: canvas preview -->
@@ -957,6 +954,10 @@ function addTeLayer(){
   const l={id:++teLayerId,text:'텍스트',font:'Pretendard',size:24,weight:'600',color:'#111111',textBg:'',align:'center',x:W/2,y:H/2};
   teLayers.push(l);teSelId=l.id;
   renderTeList();loadTePanel(l);teRedraw();
+  requestAnimationFrame(()=>{
+    const handle=V('teStage').querySelector(`.te-handle[data-layer-id="${l.id}"]`);
+    if(handle)startInlineTextEdit(l,handle);
+  });
 }
 
 function removeTeLayer(id){
@@ -978,7 +979,7 @@ function renderTeList(){
 
 function loadTePanel(l){
   V('teEditPanel').style.display='flex';
-  V('teTxt').value=l.text;V('teFont').value=l.font;
+  V('teFont').value=l.font;
   V('teSz').value=l.size;V('teWt').value=l.weight;
   V('teColor').value=l.color;
   V('teTextBgOn').checked=!!l.textBg;
@@ -989,7 +990,7 @@ function loadTePanel(l){
 
 function teUpdateSel(){
   const l=teLayers.find(x=>x.id===teSelId);if(!l)return;
-  l.text=V('teTxt').value;l.font=V('teFont').value;
+  l.font=V('teFont').value;
   l.size=parseInt(V('teSz').value)||32;l.weight=V('teWt').value;
   l.color=V('teColor').value;
   l.textBg=V('teTextBgOn').checked?V('teTextBg').value:'';
@@ -1091,6 +1092,7 @@ function updateTeHandles(W,H){
     const hy=(l.y-m.tH/2-m.padY)*teScale;
     const dh=document.createElement('div');
     dh.className='te-handle'+(teSelId===l.id?' sel':'');
+    dh.dataset.layerId=l.id;
     dh.title='드래그로 이동 · 더블클릭으로 내용 수정 · 조절점으로 크기 변경';
     dh.style.cssText=`left:${hx}px;top:${hy}px;width:${Math.max(hw,30)}px;height:${Math.max(hh,20)}px;`;
     const del=document.createElement('div');del.className='te-hdel';del.textContent='x';
@@ -1105,7 +1107,8 @@ function updateTeHandles(W,H){
     dh.appendChild(resize);
     dh.addEventListener('mousedown',e=>{
       e.stopPropagation();e.preventDefault();
-      teSelId=l.id;renderTeList();loadTePanel(l);teRedraw();
+      teSelId=l.id;renderTeList();loadTePanel(l);
+      stage.querySelectorAll('.te-handle').forEach(handle=>handle.classList.toggle('sel',handle===dh));
       teDrag={type:'move',lid:l.id,sx:e.clientX,sy:e.clientY,slx:l.x,sly:l.y};
     });
     dh.addEventListener('dblclick',e=>{
@@ -1133,6 +1136,8 @@ function startInlineTextEdit(layer,handle){
   editor.style.width=handle.style.width;
   editor.style.height=handle.style.height;
   editor.style.font=`${Math.max(12,layer.size*teScale)}px "${layer.font}"`;
+  editor.style.color=layer.color;
+  editor.style.background=layer.textBg||'rgba(255,255,255,.94)';
   let done=false;
   const commit=()=>{
     if(done)return;done=true;
